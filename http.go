@@ -28,14 +28,15 @@ func (s *Server) Log(content string) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.Log(fmt.Sprintf("url:[%s]", r.URL.Path))
-
-	if !strings.HasPrefix(r.URL.Path, s.dbName) {
-		panic("Server serving unexpected path: " + r.URL.Path)
+	keyList := strings.Split(r.URL.Path[1:], "/")
+	if len(keyList) != paramLayerCount {
+		http.Error(w, fmt.Sprintf("wrong action in db. wrong path:[%s]", r.URL.Path), http.StatusBadRequest)
+		return
 	}
 
-	keyList := strings.Split(r.URL.Path, "/")
-	if len(keyList) != paramLayerCount {
-		panic("wrong action in db. wrong path:["+r.URL.Path+"]")
+	if s.dbName != keyList[0] {
+		http.Error(w, fmt.Sprintf("no such db exist in server. wrong path:[%s]", r.URL.Path), http.StatusBadRequest)
+		return
 	}
 
 	dbMap := GetGroup(keyList[1])
@@ -46,7 +47,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if val, ok := dbMap.Get(keyList[2]); ok {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write([]byte(val.(string)))
+		w.Write(val.([]byte))
 	} else {
 		http.Error(w, fmt.Sprintf("not found this key:[%s]", keyList[2]), http.StatusNotFound)
 	}
