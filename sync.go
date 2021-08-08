@@ -3,13 +3,13 @@ package zzcache
 import "sync"
 
 type syncCache struct {
-	sync.Mutex
+	sync.RWMutex
 	lru lruCache
 }
 
 func (c *syncCache) Get(key string) (interface{}, bool) {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	return c.lru.Get(key)
 }
