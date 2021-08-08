@@ -74,7 +74,7 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getAux(db string, group string, key string) ([]byte, error) {
-	if s.dbName != db{
+	if s.dbName != db {
 		return nil, errors.New(fmt.Sprintf("base db exist in server. db:[%s]", db))
 	}
 
@@ -152,13 +152,13 @@ func (s *Server) AddServerNodes(peers ...string) {
 
 	s.nodeHashMap.AddNode(peers...)
 	for _, peer := range peers {
-		s.peerMap[peer] = &httpPeer{peer }
+		s.peerMap[peer] = &httpPeer{peer}
 	}
 
 	return
 }
 
-// 获取其他节点的Getter接口
+// 获取其他节点
 func (s *Server) FetchPeer(node string) (Peer, bool) {
 	if peer, ok := s.peerMap[node]; ok && s.address != node {
 		return peer, true
@@ -173,7 +173,7 @@ type httpPeer struct {
 
 func (h *httpPeer) Get(group string, key string) ([]byte, error) {
 	u := fmt.Sprintf(
-		"%v/%s/%v/%v",
+		"http://%v/%s/%v/%v",
 		h.baseURL,
 		dbName,
 		url.QueryEscape(group),
@@ -185,13 +185,14 @@ func (h *httpPeer) Get(group string, key string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned: [%v]", res.Status)
-	}
+	//if res.StatusCode != http.StatusOK {
+	//	return nil, fmt.Errorf("server returned: [%v]", res.Status)
+	//}
 
 	bytes, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response body: [%v]", err)
+		return nil, err
+		//return nil, fmt.Errorf("reading response body: [%v]", err)
 	}
 
 	return bytes, nil
@@ -199,7 +200,7 @@ func (h *httpPeer) Get(group string, key string) ([]byte, error) {
 
 func (h *httpPeer) Set(group string, key string, value []byte) error {
 	u := fmt.Sprintf(
-		"%v/%s/%v/%v",
+		"http://%v/%s/%v/%v",
 		h.baseURL,
 		dbName,
 		url.QueryEscape(group),
@@ -207,7 +208,7 @@ func (h *httpPeer) Set(group string, key string, value []byte) error {
 	)
 
 	body := bytes.NewReader(value)
-	res, postErr := http.Post(u, "application/x-www-form-urlencoded; charset=UTF-8", body)
+	res, postErr := http.Post(u, "application/octet-stream; charset=UTF-8", body)
 	if postErr != nil {
 		return postErr
 	}
