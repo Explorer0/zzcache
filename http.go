@@ -22,6 +22,7 @@ type Server struct {
 	sync.RWMutex
 	nodeHashMap *DistributeMap
 	peerMap     map[string]Peer
+	rrc         *RequestCache // 读请求缓存
 }
 
 func NewServer(addr string) *Server {
@@ -30,6 +31,7 @@ func NewServer(addr string) *Server {
 		dbName:      dbName,
 		nodeHashMap: NewDistributeMap(defaultReplicaCnt, nil),
 		peerMap:     make(map[string]Peer),
+		rrc:         NewRequestCache(),
 	}
 }
 
@@ -78,27 +80,30 @@ func (s *Server) getAux(db string, group string, key string) ([]byte, error) {
 		return nil, errors.New(fmt.Sprintf("base db exist in server. db:[%s]", db))
 	}
 
-	// 从key推导出节点地址
-	nodeAddress := s.nodeHashMap.GetNode(key)
-	// 如果key不存在当前节点，则从其他节点获取
-	if nodeAddress != s.address {
-		if peer, ok := s.peerMap[nodeAddress]; ok {
-			s.Log(fmt.Sprintf("redirect to [%s]", peer.GetName()))
-			return peer.Get(group, key)
+	return s.rrc.Do(key, func() ([]byte, error) {
+		// 从key推导出节点地址
+		nodeAddress := s.nodeHashMap.GetNode(key)
+		// 如果key不存在当前节点，则从其他节点获取
+		if nodeAddress != s.address {
+			if peer, ok := s.peerMap[nodeAddress]; ok {
+				s.Log(fmt.Sprintf("redirect to [%s]", peer.GetName()))
+				return peer.Get(group, key)
+			}
 		}
-	}
 
-	// 从当前节点获取
-	dbMap := GetGroup(group)
-	if dbMap == nil {
-		return nil, errors.New(fmt.Sprintf("no such db. db:[%s]", group))
-	}
+		// 从当前节点获取
+		dbMap := GetGroup(group)
+		if dbMap == nil {
+			return nil, errors.New(fmt.Sprintf("no such db. db:[%s]", group))
+		}
 
-	if val, ok := dbMap.Get(key); ok {
-		return val.([]byte), nil
-	} else {
-		return nil, errors.New(fmt.Sprintf("not found this key:[%s]", key))
-	}
+		if val, ok := dbMap.Get(key); ok {
+			return val.([]byte), nil
+		} else {
+			return nil, errors.New(fmt.Sprintf("not found this key:[%s]", key))
+		}
+	})
+
 }
 
 func (s *Server) set(w http.ResponseWriter, r *http.Request) {
